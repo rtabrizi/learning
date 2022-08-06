@@ -19,14 +19,37 @@ class NN(nn.Module):
         x = self.fc2(x)
         return x
     
-model = NN(784, 10) # each image is 784 values, 10 possible digits
-x = torch.randn(64, 784) #minibatch size of 64 samples, all with 784 values --> it's a 64 x 784 matrix of random numbers between 0 and 1
+
+class CNN(nn.Module):
+
+    def __init__(self, in_channels = 1, num_classes = 10):
+        super(CNN, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels= in_channels, out_channels=8, kernel_size=(3,3), stride=(1,1), padding=(1,1)) # same convolution for input of 28x28
+        self.pool = nn.MaxPool2d(kernel_size=(2,2), stride=(2,2)) # will divide layer size by 2
+        self.conv2 = nn.Conv2d(in_channels=8, out_channels=16, kernel_size=(3,3), stride=(1,1), padding=(1,1)) # same convolution for input of 28x28
+        self.fc1 = nn.Linear(16*7*7, num_classes) #16 output channels, 28/(2^2) = 14 --> halved twice
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = self.pool(x)
+        x = F.relu(self.conv2(x))
+        x = self.pool(x)
+        x = x.reshape(x.shape[0], -1) # flatten for each batch
+        x = self.fc1(x)
+        
+        return x
+
+
+
+
+model = CNN() # each image is 784 values, 10 possible digits
+x = torch.randn(64, 1, 28, 28) #minibatch size of 64 samples, all with 784 values --> it's a 64 x 784 matrix of random numbers between 0 and 1
+print(model(x).shape)
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # hyperparameters
-input_size = 784
+in_channels = 1
 num_classes = 10
 learning_rate = 0.001
 batch_size = 64
@@ -40,7 +63,7 @@ test_dataset = datasets.MNIST(root = 'dataset/', train = False, transform = tran
 test_loader = DataLoader(dataset=test_dataset, batch_size = batch_size, shuffle=True) 
 
 # initialize network
-model = NN(input_size = input_size, num_classes = num_classes).to(device)
+model = CNN().to(device)
 
 # loss and optimizer
 loss = nn.CrossEntropyLoss()
@@ -53,8 +76,6 @@ for epoch in range(num_epochs):
         images = images.to(device=device)
         labels = labels.to(device=device)
         #x.shape = (64,1,28,28) batch size of 64, 1 color channel, 28x28 pixel
-        # -1 flattens everything else into single dimension
-        images = images.reshape(images.shape[0], -1) 
         
         # forward
         logits = model(images)
@@ -87,7 +108,7 @@ def check_accuracy(loader, model):
         for images, labels in loader:
             images = images.to(device=device)
             labels = labels.to(device=device)
-            images = images.reshape(x.shape[0], -1)
+    
             
             logits = model(images)
             # max of second dimension (value from 0 to 9 for certain digit) 64 x 10
