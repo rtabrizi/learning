@@ -33,7 +33,7 @@ batch_size = 64
 num_epochs = 1
 
 # Load Data
-train_dataset = datasets.MNIST(root = 'dataset/', train = True, transform = transforms.ToTensor()) # root is where dataset is saved
+train_dataset = datasets.MNIST(root = 'dataset/', train = True, download = True, transform = transforms.ToTensor()) # root is where dataset is saved
 # transforms data (default is numpy array) to tensors
 train_loader = DataLoader(dataset=train_dataset, batch_size = batch_size, shuffle=True) # shuffle --> shuffles batches each epoch for variety
 test_dataset = datasets.MNIST(root = 'dataset/', train = False, transform = transforms.ToTensor()) 
