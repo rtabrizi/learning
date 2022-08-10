@@ -11,7 +11,7 @@ import torchvision.transforms as transforms # transformations on dataset
 import torch
 import torch.nn as nn
 
-class Block(nn.Module):
+class Bottleneck(nn.Module):
     # identity downsample for moments where there's a dotted line when looking at paper's graph
     def __init__(self, in_channels, out_channels, identity_downsample=None, stride=1):
         super().__init__()
@@ -56,7 +56,7 @@ class Block(nn.Module):
         return x
 
 class ResNet(nn.Module):
-    # layers will be list of how many times per block [3, 4, 6, 3]
+    # layers: how many bottlenecks per layer
     def __init__(self, layers, image_channels, num_classes):
         super().__init__()
         self.in_channels = 64
@@ -71,7 +71,7 @@ class ResNet(nn.Module):
 
 
         #for ResNet 50, input_channels = 64, out_channels is really the 1x1, 64 seen in architecture table
-        # we still consider out_channels to be 64 even though last layer has 256 channels (for block 1)
+        # we still consider out_channels to be 64 even though last layer has 256 channels (for bottleneck 1)
         self.layer1 = self.__make_layer(layers[0], out_channels=64, stride=1)
         self.layer2 = self.__make_layer(layers[1], out_channels=128, stride=2)
         self.layer3 = self.__make_layer(layers[2], out_channels=256, stride=2)
@@ -99,20 +99,20 @@ class ResNet(nn.Module):
 
         return x
 
-    def __make_layer(self, num_residual_blocks, out_channels, stride):
+    def __make_layer(self, num_bottlenecks, out_channels, stride):
         identity_downsample = None
         layers = []
 
         
 
-        #changes number of channels only in first block
-        layers.append(Block(self.in_channels, out_channels, identity_downsample, stride))
+        #changes number of channels only in first bottleneck
+        layers.append(Bottleneck(self.in_channels, out_channels, identity_downsample, stride))
 
         #figure 5 of paper: now that we're past the downsample, the input_channels = 64 * 4 = 256
         self.in_channels = out_channels*4
 
-        for i in range(num_residual_blocks-1):
-            layers.append(Block(self.in_channels, out_channels))
+        for i in range(num_bottlenecks-1):
+            layers.append(Bottleneck(self.in_channels, out_channels))
 
         return nn.Sequential(*layers)
     
