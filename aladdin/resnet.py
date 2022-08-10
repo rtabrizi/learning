@@ -15,7 +15,7 @@ class block(nn.Module):
     # identity downsample for moments where there's a dotted line when looking at paper's graph
     def __init__(self, in_channels, out_channels, identity_downsample=None, stride=1):
         super(block,self).__init__()
-        # output # of channels is always 4 times the input # of channels
+        # block 1 example: input channels = 64, output channels = 64 (we ignore the 256 and instead explicilty write that as out_channels * 4)
         # figure 5 of original paper
         self.expansion = 4
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
@@ -27,7 +27,11 @@ class block(nn.Module):
         self.relu = nn.ReLU()
         self.identity_downsample = identity_downsample
         self.stride = stride
-
+        if stride > 1 or in_channels != out_channels * self.expansion:
+            # 1x1 convolution
+            # we use inputted stride to match feature mapping dimensions
+            self.identity_downsample = nn.Sequential(nn.Conv2d(in_channels, out_channels * self.expansion, kernel_size=1, stride=stride),
+            nn.BatchNorm2d(out_channels * self.expansion))
     def forward(self, x):
         identity = x.clone()
         x = self.conv1(x)
@@ -38,6 +42,8 @@ class block(nn.Module):
         x = self.relu(x)
         x = self.conv3(x)
         x = self.bn3(x)
+        #according to paper, downsamples are performed with a stride of 2
+        #skip connection if number of channels change or stride isn't 1
         
         
         if self.identity_downsample is not None:
@@ -61,6 +67,10 @@ class ResNet(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         #ResNet layers
+
+
+        #for ResNet 50, input_channels = 64, out_channels is really the 1x1, 64 seen in architecture table
+        # we still consider out_channels to be 64 even though last layer has 256 channels (for block 1)
         self.layer1 = self.__make_layer(block, layers[0], out_channels=64, stride=1)
         self.layer2 = self.__make_layer(block, layers[1], out_channels=128, stride=2)
         self.layer3 = self.__make_layer(block, layers[2], out_channels=256, stride=2)
@@ -92,16 +102,12 @@ class ResNet(nn.Module):
         identity_downsample = None
         layers = []
 
-        #according to paper, downsamples are performed with a stride of 2
-        #skip connection if number of channels change or stride isn't 1
-        if stride != 1 or self.in_channels != 4 * out_channels:
-            # 1x1 convolution
-            # we use inputted stride to match feature mapping dimensions
-            identity_downsample = nn.Sequential(nn.Conv2d(self.in_channels, out_channels*4, kernel_size=1, stride=stride),
-            nn.BatchNorm2d(out_channels*4))
+        
 
         #changes number of channels only in first block
         layers.append(block(self.in_channels, out_channels, identity_downsample, stride))
+
+        #figure 5 of paper: now that we're past the downsample, the input_channels = 64 * 4 = 256
         self.in_channels = out_channels*4
 
         for i in range(num_residual_blocks-1):
