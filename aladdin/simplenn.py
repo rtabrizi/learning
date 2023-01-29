@@ -54,7 +54,7 @@ for epoch in range(num_epochs):
         labels = labels.to(device=device)
         #x.shape = (64,1,28,28) batch size of 64, 1 color channel, 28x28 pixel
         # -1 flattens everything else into single dimension
-        images = images.reshape(images.shape[0], -1) 
+        images = images.resjhape(images.shape[0], -1) 
         
         # forward
         logits = model(images)

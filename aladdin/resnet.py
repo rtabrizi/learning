@@ -12,18 +12,17 @@ import torch
 import torch.nn as nn
 
 class Bottleneck(nn.Module):
-    # identity downsample for moments where there's a dotted line when looking at paper's graph
+    expansion = 4
     def __init__(self, in_channels, out_channels, identity_downsample=None, stride=1):
         super().__init__()
         # block 1 example: input channels = 64, output channels = 64 (we ignore the 256 and instead explicilty write that as out_channels * 4)
         # figure 5 of original paper
-        self.expansion = 4
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=1)
         self.bn2 = nn.BatchNorm2d(out_channels)
         self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, stride=1, padding=0)
-        self.bn3 = nn.BatchNorm2d(out_channels*self.expansion)
+        self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
         self.relu = nn.ReLU()
         self.identity_downsample = identity_downsample
         self.stride = stride
@@ -56,7 +55,7 @@ class Bottleneck(nn.Module):
         return x
 
 class ResNet(nn.Module):
-    # layers: how many bottlenecks per layer
+    # layers: how many bottlenecks/blocks  per layer
     def __init__(self, layers, image_channels, num_classes):
         super().__init__()
         self.in_channels = 64
@@ -90,7 +89,7 @@ class ResNet(nn.Module):
 
         x = self.layer1(x)
         x = self.layer2(x)
-        x = self.layer3(x)
+        x = self.layer3(x) 
         x = self.layer4(x)
 
         x = self.avgpool(x)
@@ -121,94 +120,3 @@ def ResNet50(img_channels=3, num_classes=1000):
 
 def ResNet101(img_channels=3, num_classes=1000):
     return ResNet([3,8,36,3], img_channels, num_classes)
-
-model = ResNet50(img_channels=1, num_classes=10) # each image is 784 values, 10 possible digits
-
-# Set device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-# hyperparameters
-in_channels = 1
-num_classes = 10
-learning_rate = 0.001
-batch_size = 64
-num_epochs = 1
-
-# Load Data
-train_dataset = datasets.MNIST(root = 'dataset/', train = True, download = True, transform = transforms.ToTensor()) # root is where dataset is saved
-# transforms data (default is numpy array) to tensors
-train_loader = DataLoader(dataset=train_dataset, batch_size = batch_size, shuffle=True) # shuffle --> shuffles batches each epoch for variety
-test_dataset = datasets.MNIST(root = 'dataset/', train = False, transform = transforms.ToTensor()) 
-test_loader = DataLoader(dataset=test_dataset, batch_size = batch_size, shuffle=True) 
-
-# initialize network
-
-# loss and optimizer
-loss = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr = learning_rate)
-
-# train network
-print("NUM EPOCHS: %s" % num_epochs)
-print("NUM BATCHES: %s" % len(train_loader))
-for epoch in range(num_epochs):
-    print("EPOCH: %s" % str(epoch + 1))
-    for batch_idx, (images, labels) in enumerate(train_loader): # enumerate shows batch index, data is image, target is correct label
-        print("batch number: %s" % str(batch_idx))
-        # get data to cuda if possible
-        images = images.to(device=device)
-        labels = labels.to(device=device)
-        #x.shape = (64,1,28,28) batch size of 64, 1 color channel, 28x28 pixel
-        
-        # forward
-        
-        logits = model(images)
-        
-        #calculate cost
-        J = loss(logits, labels)
-        
-        #backward
-        #set all gradiants to zero for each batch so it isn't stored from previous forward props
-        optimizer.zero_grad()
-        
-        J.backward()
-        
-        
-        # gradient descent or adam step
-        optimizer.step()
-        
-        
-
-# check accuracy
-def check_accuracy(loader, model):
-    if loader.dataset.train:
-        print("checking accuracy on training data")
-    else:
-        print("checking accuracy on testing data")
-    num_correct = 0
-    num_samples = 0
-    
-    # set model to evaluation mode
-    model.eval()
-    
-    # when checking accuracy, don't calculate the gradients when checking accuracy
-    with torch.no_grad():
-        for images, labels in loader:
-            images = images.to(device=device)
-            labels = labels.to(device=device)
-    
-            
-            logits = model(images)
-            # max of second dimension (value from 0 to 9 for certain digit) 64 x 10
-            _, predictions = logits.max(1)
-            num_correct += (predictions == labels).sum()
-            # batch size = 64 = number of samples
-            num_samples += predictions.size(0)
-            
-        #converts tensors to floats with 2 decimals    
-        print(f'Got {num_correct} / {num_samples} with accuracy {float(num_correct)/float(num_samples)*100:.2f}') 
-        
-    model.train()
-check_accuracy(train_loader, model)
-check_accuracy(test_loader, model)
-            
-    

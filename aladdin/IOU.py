@@ -36,13 +36,14 @@ def intersection_over_union(boxes_preds, boxes_labels, box_format = "midpoint"):
 
     x1 = torch.max(box1_x1, box2_x1)
     y1 = torch.max(box1_y1, box2_y1)
-    x2 = torch.max(box1_x2, box2_x2)
-    y2 = torch.max(box1_y2, box2_y2)
+    x2 = torch.min(box1_x2, box2_x2)
+    y2 = torch.min(box1_y2, box2_y2)
 
     intersection = (x2-x1).clamp(0) * (y2 - y1).clamp(0)
     #if the two boxes don't intersect, then either (x2-x1) or (y2-y1) will be 0
     
-    box1_area = abs((box1_x2 - box1_x1) * (box1_y1 - box1_y2))
+    box1_area = abs((box1_x1 - box2_x1) * (box1_y1 - box1_y2))
     box2_area = abs((box2_x2 - box2_x1) * (box2_y1 - box2_y2))
 
     return intersection / (box1_area + box2_area - intersection + 1e-6) # so we don't count intersection twice
+

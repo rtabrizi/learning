@@ -1,0 +1,2 @@
+object localization: finding what and where an object exists in a single image
+object detection: finding what and where (multiple) objects are in a single image

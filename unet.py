@@ -74,9 +74,9 @@ class UNet(nn.Module):
 
         return x
 
-x = torch.randn(64, 3, 32, 32)
-model = UNet(3, 10)
-print(model(x).shape)
+x = torch.randn(64, 1, 32, 32)
+model = UNet(1, 10)
+
 
 
 
