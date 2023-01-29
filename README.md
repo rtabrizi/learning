@@ -1,0 +1,1 @@
+This is to showcase the different tutorials and projects I'm tinkering with as I try to learn more ML and ML-related content! Listening to Andrej's advice of keeping a record of what I'm learning for my own sake as well as to showcase the journey to others!
