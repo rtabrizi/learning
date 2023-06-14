@@ -17,6 +17,7 @@ class NN(nn.Module):
     def forward(self, x): # runs on some input x
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
+        print("X SHAPE %s" % str(x.shape))
         return x
     
 model = NN(784, 10) # each image is 784 values, 10 possible digits
@@ -34,7 +35,7 @@ num_epochs = 1
 
 # Load Data
 train_dataset = datasets.MNIST(root = 'dataset/', train = True, download = True, transform = transforms.ToTensor()) # root is where dataset is saved
-# transforms data (default is numpy array) to tensors
+    # transforms data (default is numpy array) to tensors
 train_loader = DataLoader(dataset=train_dataset, batch_size = batch_size, shuffle=True) # shuffle --> shuffles batches each epoch for variety
 test_dataset = datasets.MNIST(root = 'dataset/', train = False, transform = transforms.ToTensor()) 
 test_loader = DataLoader(dataset=test_dataset, batch_size = batch_size, shuffle=True) 
@@ -54,11 +55,14 @@ for epoch in range(num_epochs):
         labels = labels.to(device=device)
         #x.shape = (64,1,28,28) batch size of 64, 1 color channel, 28x28 pixel
         # -1 flattens everything else into single dimension
-        images = images.resjhape(images.shape[0], -1) 
+        images = images.reshape(images.shape[0], -1) 
+        print("IMAGES SHAPE %s" % str(images.shape))
         
         # forward
         logits = model(images)
         #calculate cost
+        print("LOGITS SHAPE: %s" % str(logits.shape))
+        print(labels.shape)
         J = loss(logits, labels)
         
         #backward

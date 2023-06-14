@@ -1,30 +1,79 @@
 import torch
 import torch.nn as nn
+from torch.nn import functional as F
+
+batch_size = 64
+embed_size = 384
+context_len = 256
+max_iters = 5000
+eval_interval = 500
+learning_rate = 3e-4
+eval_iters = 200
+n_heads = 6
+n_layers = 6
+dropout = 0.2
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 class SelfAttention(nn.Module):
-    def __init__(self, embed_size, heads):
+    def __init__(self, head_size):
         super().__init__()
-        self.embed_size = embed_size
-        self.heads = heads
-        # split embedding into heads # of heads
-        #e.g. embed_size = 256, heads = 8 --> 8*32 parts
-        self.head_dim = embed_size // heads
+        self.key = nn.Linear(embed_size, head_size, bias=False)
+        self.query = nn.Linear(embed_size, head_size, bias=False)
+        self.value = nn.Linear(embed_size, head_size, bias=False)
 
-        # make sure clean division
-        assert self.head_dim * heads == embed_size, "error"
+        # for autocomplete, we need a mask so that the transformer doens't attend to future tokens
+        self.register_buffer('tril', torch.tril(torch.ones(context_len, context_len)))
 
-        self.values = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.keys = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.queries = nn.Linear(self.head_dim, self.head_dim, bias=False)
-        self.fc_out = nn.Linear(heads * self.head_dim, embed_size)
+        self.dropout = nn.Dropout(dropout)
 
-    def forward(self, values, keys, query, mask):
-        N = query.shape[0]
-        value_len, key_len, query_len = values.shape[1], keys.shape[1], query.shape[1]
+    def forward(self, x):
+        batch_size, context_len, token_size = x.shape
+        k = self.key(x) # (batch_size, context_len, num_heads)
+        q = self.query(x) # (batch_size, context_len, num_heads)
 
-        #split embedding into self.heads pieces
-        values = values.reshape(N, value_len, self.heads, self.head_dim)
-        keys = keys.reshape(N, key_len, self.heads, self.head_dim)
-        queries = query.reshape(N, query_len, self.heads, self.head_dim)
+        # need to compute the affinities, scaled attention
+        weights = q @ k.transpose(-2, -1) * k.shape[-1]**-0.5 # (batch_size, context_len, num_heads) @ (batch_size, num_heads, context_len) 
+                                                              # -> (batch_size, context_len, context_len)
+        weights = weights.masked_fill(self.tril[:context_len, :context_len] ==0, float('-inf'))
+        weights = F.softmax(weights, dim=-1) # (batch_size, context_len, context_len)
+        weights = self.dropout(weights)
+        # now need to do weighted aggregation
+        v = self.value(x)
+        out = weights @ v # (batch_size, context_len, context_len) @ (batch_size, context_len, num_heads) --> (batch_size, context_len, num_heads)
+        return out
 
+class MultiHeadSelfAttention(nn.Module):    
+    def __init__(self, embed_size, num_heads):
+        assert embed_size % num_heads == 0, "num heads not compatible "
+        super().__init__()
+        self.head_size = embed_size // num_heads
+        self.heads = nn.ModuleList([SelfAttention(self.head_size) for _ in range(num_heads)])
         
+        self.proj = nn.Linear(self.head_size * num_heads, embed_size)
+        # same as embed_size so we can do skip connection
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        out = torch.cat([h(x) for h in self.heads], dim=-1)
+        out = self.dropout(self.proj(out))
+        return out
+class Block(nn.Module):
+    """ A complete Transformer _decoder_ block"""
+
+    def __init__(self, embed_size, num_heads):
+        super().__init__()
+
+        head_size = embed_size // num_heads
+        self.sa = MultiHeadSelfAttention(head_size, num_heads)
+        self.ffwd = nn.Sequential(
+            nn.Linear(embed_size, 4 * embed_size),
+            nn.ReLU(),
+            nn.Linear(4 * embed_size, embed_size),
+            nn.Dropout(dropout),
+        )
+        self.layer_norm = nn.LayerNorm(embed_size)
+
+    def forward(self, x):
+        x = x + self.sa(self.layer_norm(x))
+        x = x + self.ffwd(self.layer_norm(x))
+        return x

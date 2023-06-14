@@ -101,9 +101,6 @@ class ResNet(nn.Module):
     def __make_layer(self, num_bottlenecks, out_channels, stride):
         identity_downsample = None
         layers = []
-
-        
-
         #changes number of channels only in first bottleneck
         layers.append(Bottleneck(self.in_channels, out_channels, identity_downsample, stride))
 
