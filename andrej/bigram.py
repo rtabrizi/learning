@@ -125,5 +125,10 @@ for iter in range(max_iters):
   optimizer.step()
 
 
+class Head(nn.Moldule):
+   """One head of self-attention"""
 
-
+   def __init__(self, head_size):
+      super().__init__()
+      self.key = nn.Linear(n_embd, head_size, bias=False)
+      self.query  = nn.
