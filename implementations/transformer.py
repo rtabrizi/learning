@@ -17,19 +17,20 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 class SelfAttention(nn.Module):
     def __init__(self, head_size):
         super().__init__()
-        self.key = nn.Linear(embed_size, head_size, bias=False)
+        self.key = nn.Linear(embed_size, head_size, bias=False) # y=xW^T + b --> W^T = (input_size, output_size)
         self.query = nn.Linear(embed_size, head_size, bias=False)
         self.value = nn.Linear(embed_size, head_size, bias=False)
 
-        # for autocomplete, we need a mask so that the transformer doens't attend to future tokens
+        # for autocomplete, we need a mask so that the transformer doens't attend to future tokens (autoregressive)
         self.register_buffer('tril', torch.tril(torch.ones(context_len, context_len)))
 
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        batch_size, context_len, token_size = x.shape
-        k = self.key(x) # (batch_size, context_len, num_heads)
-        q = self.query(x) # (batch_size, context_len, num_heads)
+
+        batch_size, context_len, embed_size = x.shape
+        k = self.key(x) # (batch_size, context_len, embed_size) @ (embed_size, head_size) --> (batch_size, context_len, head_size)
+        q = self.query(x) # (batch_size, context_len, head_size)
 
         # need to compute the affinities, scaled attention
         weights = q @ k.transpose(-2, -1) * k.shape[-1]**-0.5 # (batch_size, context_len, num_heads) @ (batch_size, num_heads, context_len) 
@@ -38,7 +39,7 @@ class SelfAttention(nn.Module):
         weights = F.softmax(weights, dim=-1) # (batch_size, context_len, context_len)
         weights = self.dropout(weights)
         # now need to do weighted aggregation
-        v = self.value(x)
+        v = self.value(x) #(batch_size, context_len, head_size)
         out = weights @ v # (batch_size, context_len, context_len) @ (batch_size, context_len, num_heads) --> (batch_size, context_len, num_heads)
         return out
 
@@ -53,10 +54,11 @@ class MultiHeadSelfAttention(nn.Module):
         # same as embed_size so we can do skip connection
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x):
+    def forward(self, x): #(batch_size, context_len, embed_size)
         out = torch.cat([h(x) for h in self.heads], dim=-1)
         out = self.dropout(self.proj(out))
         return out
+    
 class Block(nn.Module):
     """ A complete Transformer _decoder_ block"""
 

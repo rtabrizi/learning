@@ -122,11 +122,9 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
 
         return x
-    
 
 
-
-#from lucidrains ViT implementaiton
+#from lucidrains ViT implementation
 def posemb_sincos_2d(patches, temperature = 10000, dtype = torch.float32):
     _, h, w, dim, device, dtype = *patches.shape, patches.device, patches.dtype
 
